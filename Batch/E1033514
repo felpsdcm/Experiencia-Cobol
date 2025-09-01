@@ -1,0 +1,282 @@
+      *--------------------------------------------------------*
+       IDENTIFICATION                      DIVISION.
+      *-------------------------------------------------------------*
+       PROGRAM-ID.                         E1033514.
+       AUTHOR.                             FELIPE.
+      *
+      *--------------------------------------------------------------*
+       ENVIRONMENT                         DIVISION.
+      *--------------------------------------------------------------*
+       CONFIGURATION                       SECTION.
+       SPECIAL-NAMES.
+           DECIMAL-POINT IS COMMA.
+      *
+       INPUT-OUTPUT                        SECTION.
+      *
+       FILE-CONTROL.
+           SELECT FILE008 ASSIGN TO UT-S-FILE008
+           FILE STATUS IS FS-FILE008
+           .
+
+           SELECT FILE009 ASSIGN TO UT-S-FILE009
+           FILE STATUS IS FS-FILE009
+           .
+      *--------------------------------------------------------------*
+       DATA                                DIVISION.
+      *--------------------------------------------------------------*
+       FILE                                SECTION.
+      *--------------------------------------------------------------*
+       FD  FILE008
+           LABEL RECORD OMITTED
+           RECORDING MODE IS F
+           RECORD CONTAINS 374 CHARACTERS
+           DATA RECORD IS REG-FILE008
+           .
+       01  REG-FILE008.
+           COPY B135F008.
+
+       FD  FILE009
+           LABEL RECORD OMITTED
+           RECORDING MODE IS F
+           RECORD CONTAINS 380 CHARACTERS
+           DATA RECORD IS REG-FILE009
+           .
+       01  REG-FILE009.
+           COPY B135F009.
+      *--------------------------------------------------------------*
+       WORKING-STORAGE                     SECTION.
+      *--------------------------------------------------------------*
+       01  WS-CONTADORES-COMP.
+           05  WS-CTLIDO                   PIC 9(05) COMP.
+           05  WS-CTREG                    PIC 9(05) COMP.
+           05  WS-CTDESC                   PIC 9(05) COMP.
+
+       01  WS-CONTADORES-COM-F.
+           05  WS-CTLIDO-F                 PIC ZZZ9.
+           05  WS-CTREG-F                  PIC ZZZ9.
+           05  WS-CTDESC-F                 PIC ZZZ9.
+
+       77  WS-FIXA1                         PIC 9(03)V99.
+       77  WS-FIXA2                         PIC 9(03)V99.
+       77  WS-FIXA3                         PIC 9(03)V99.
+       77  WS-FIXA4                         PIC 9(03)V99.
+
+       77  WS-TAXATOTAL                    PIC 9(04)V99.
+       77  WS-SOBRA                        PIC 9(04)V99.
+       77  WS-SALARIOAUX                   PIC S9(08)V99 COMP-3.
+       77  WS-TAXAAUX                      PIC 9(04)V99.
+      *--------------------------------------------------------------*
+      * VARIAVEIS DE FILE STATUS                                     *
+      *--------------------------------------------------------------*
+       01  FS-FILE008                       PIC X(02).
+           88 SUCESSO-8                            VALUE '00'.
+           88 FIM-ARQ-8                            VALUE '10'.
+
+       01  FS-FILE009                       PIC X(02).
+           88 SUCESSO-9                            VALUE '00'.
+           88 FIM-ARQ-9                            VALUE '10'.
+      *--------------------------------------------------------------*
+       PROCEDURE                           DIVISION.
+      *--------------------------------------------------------------*
+           PERFORM 1000-INICIALIZAR
+           PERFORM 2000-PROCESSAR
+               UNTIL FIM-ARQ-8
+           PERFORM 3000-TERMINO
+           STOP RUN
+           .
+
+       1000-INICIALIZAR.
+           INITIALIZE WS-CONTADORES-COMP
+
+           MOVE 0                          TO WS-CTLIDO
+                                              WS-CTREG
+                                              WS-CTDESC
+
+           OPEN INPUT FILE008
+
+           IF NOT SUCESSO-8
+               DISPLAY "ERRO ABERTURA ARQUIVO ENTRADA"
+               DISPLAY FS-FILE008
+               GO TO 9000-ERRO
+           END-IF
+
+           OPEN OUTPUT FILE009
+
+           IF NOT SUCESSO-9
+               DISPLAY "ERRO ABERTURA ARQUIVO SAIDA"
+               DISPLAY FS-FILE009
+               GO TO 9000-ERRO
+           END-IF
+
+           MOVE 105,90                     TO WS-FIXA1
+           MOVE 112,92                     TO WS-FIXA2
+           MOVE 160,00                     TO WS-FIXA3
+           MOVE 530,04                     TO WS-FIXA4
+
+           PERFORM 1500-LER-FILE008
+           .
+
+       1500-LER-FILE008.
+           READ FILE008
+
+           IF SUCESSO-8
+              ADD 1                        TO WS-CTLIDO
+           ELSE
+               IF NOT FIM-ARQ-8
+               DISPLAY 'ERRO DE LEITURA ARQUIVO'
+               DISPLAY FS-FILE008
+               GO TO 9000-ERRO
+               END-IF
+           END-IF
+           
+           COMPUTE WS
+           MOVE B135F008-SALARIO-BASE        TO WS-SALARIOAUX
+           .
+
+       2000-PROCESSAR.
+           COMPUTE WS-SALARIOAUX = B135F008-SALARIO-BASE + 
+                                   B135F008-VALOR-HORA-EXTRA
+               
+           IF B135F008-SALARIO-BASE <= 1412,00
+               PERFORM 2100-FAIXA1
+           ELSE
+               IF B135F008-SALARIO-BASE > 1412,01 AND <= 2666,68
+                   PERFORM 2200-FAIXA2
+               ELSE
+                   IF B135F008-SALARIO-BASE > 2666,69 AND <= 4000,03
+                       PERFORM 2300-FAIXA3
+                   ELSE
+                       IF B135F008-SALARIO-BASE > 4000,04 AND <= 7786,02
+                           PERFORM 2400-FAIXA4
+                       ELSE
+                           PERFORM 2450-FAIXA5
+                       END-IF
+                   END-IF
+               END-IF
+           END-IF
+
+           PERFORM 1500-LER-FILE008
+           .
+
+       2100-FAIXA1.
+           COMPUTE WS-TAXATOTAL = WS-SALARIOAUX * 0,075
+
+           PERFORM 2500-GRAVAR
+           .
+
+       2200-FAIXA2.
+           ADD WS-FIXA1                      TO WS-TAXATOTAL
+
+           COMPUTE WS-SOBRA = WS-SALARIOAUX - 1412,01
+           COMPUTE WS-TAXAAUX = WS-SOBRA * 0,09
+
+           ADD WS-TAXAAUX                    TO WS-TAXATOTAL
+
+           PERFORM 2500-GRAVAR
+           .
+
+       2300-FAIXA3.
+           ADD WS-FIXA1                      TO WS-TAXATOTAL
+           ADD WS-FIXA2                      TO WS-TAXATOTAL
+
+           COMPUTE WS-SOBRA = WS-SALARIOAUX - 2666,68
+           COMPUTE WS-TAXAAUX = WS-SOBRA * 0,12
+
+           ADD WS-TAXAAUX                    TO WS-TAXATOTAL
+
+           PERFORM 2500-GRAVAR
+           .
+
+       2400-FAIXA4.
+           ADD WS-FIXA1                      TO WS-TAXATOTAL
+           ADD WS-FIXA2                      TO WS-TAXATOTAL
+           ADD WS-FIXA3                      TO WS-TAXATOTAL
+
+           COMPUTE WS-SOBRA = WS-SALARIOAUX - 4000,04
+           COMPUTE WS-TAXAAUX = WS-SOBRA * 0,14
+
+           ADD WS-TAXAAUX                    TO WS-TAXATOTAL
+
+           PERFORM 2500-GRAVAR
+           .
+
+       2450-FAIXA5.
+           ADD WS-FIXA1                      TO WS-TAXATOTAL
+           ADD WS-FIXA2                      TO WS-TAXATOTAL
+           ADD WS-FIXA3                      TO WS-TAXATOTAL
+           ADD WS-FIXA4                      TO WS-TAXATOTAL
+
+           PERFORM 2500-GRAVAR
+           .
+
+       2500-GRAVAR.
+           MOVE B135F008-CPF              TO B135F009-CPF
+           MOVE B135F008-NOME             TO B135F009-NOME
+           MOVE B135F008-TELEFONE         TO B135F009-TELEFONE
+           MOVE B135F008-ID-CARGO         TO B135F009-ID-CARGO
+           MOVE B135F008-ID-DEPARTAMENTO  TO B135F009-ID-DEPARTAMENTO
+           MOVE B135F008-SALARIO-BASE     TO B135F009-SALARIO-BASE
+           MOVE B135F008-DATA-ADMISSAO    TO B135F009-DATA-ADMISSAO
+           MOVE B135F008-DATA-DEMISSAO    TO B135F009-DATA-DEMISSAO
+           MOVE B135F008-QTD-DEPENDENTES  TO B135F009-QTD-DEPENDENTES
+           MOVE B135F008-SOLICITOU-VT     TO B135F009-SOLICITOU-VT
+           MOVE B135F008-CONTRIB-SINDICAL TO B135F009-CONTRIB-SINDICAL
+           MOVE B135F008-QTD-HORAS-EXTRAS TO B135F009-QTD-HORAS-EXTRAS
+           MOVE B135F008-VALOR-HORA-EXTRA TO B135F009-VALOR-HORA-EXTRA
+           MOVE WS-TAXATOTAL              TO B135F009-INSS-CALCULADO
+
+           WRITE REG-FILE009
+
+           IF SUCESSO-9
+               ADD 1 TO WS-CTREG
+           ELSE
+               DISPLAY 'ERRO GRAVACAO DO ARQUIVO'
+               DISPLAY FS-FILE009
+               GO TO 9000-ERRO
+           END-IF
+
+           MOVE ZEROS                        TO WS-TAXATOTAL
+                                                WS-TAXAAUX
+                                                WS-SALARIOAUX
+                                                WS-SOBRA
+           .
+
+       3000-TERMINO.
+           MOVE WS-CTLIDO                    TO WS-CTLIDO-F
+           MOVE WS-CTREG                     TO WS-CTREG-F
+           MOVE WS-CTDESC                    TO WS-CTDESC-F
+
+           CLOSE FILE008
+           IF NOT SUCESSO-8
+               DISPLAY "ERRO FECHAMENTO ARQ-8"
+               DISPLAY FS-FILE008
+               GO TO 9000-ERRO
+           END-IF
+
+           CLOSE FILE009
+           IF NOT SUCESSO-9
+               DISPLAY "ERRO FECHAMENTO ARQ-9"
+               DISPLAY FS-FILE009
+               GO TO 9000-ERRO
+           END-IF
+
+           DISPLAY '--------------------------------------------------'
+           DISPLAY '                 WEYLAND-YUTANI                   '
+           DISPLAY '--------------------------------------------------'
+           DISPLAY 'TOTAL DE LIDOS....................' WS-CTLIDO-F
+           DISPLAY 'TOTAL DE REGISTRADOS..............' WS-CTREG-F
+           DISPLAY 'TOTAL DE DESCARTADOS..............' WS-CTDESC-F
+           DISPLAY '--------------------------------------------------'
+           DISPLAY '=================================================='
+           DISPLAY '             TERMINO NORMAL E1033514              '
+           DISPLAY '=================================================='
+           .
+
+       9000-ERRO.
+           DISPLAY '9000-ERRO'
+           DISPLAY '--------------------------------------------------'
+           DISPLAY '   XXX      TERMINO ANORMAL DO E1033514      XXX  '
+           DISPLAY '--------------------------------------------------'
+           STOP RUN
+           .
+

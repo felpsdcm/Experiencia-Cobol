@@ -1,0 +1,456 @@
+      *--------------------------------------------------------------*
+       IDENTIFICATION                      DIVISION.
+      *--------------------------------------------------------------*
+       PROGRAM-ID.                         E1033513.
+       AUTHOR.                             FELIPE.
+      *
+      *--------------------------------------------------------------*
+       ENVIRONMENT                         DIVISION.
+      *--------------------------------------------------------------*
+       CONFIGURATION                       SECTION.
+       SPECIAL-NAMES.
+           DECIMAL-POINT IS COMMA.
+      *
+       INPUT-OUTPUT                        SECTION.
+      *
+       FILE-CONTROL.
+           SELECT FILE009 ASSIGN TO UT-S-FILE009
+           FILE STATUS IS FS-FILE009
+           .
+
+           SELECT RELA002 ASSIGN TO UT-S-RELA002
+           FILE STATUS IS FS-RELA002
+           .
+
+      *--------------------------------------------------------------*
+       DATA                                DIVISION.
+      *--------------------------------------------------------------*
+       FILE                                SECTION.
+      *--------------------------------------------------------------*
+       FD  FILE009
+           RECORD CONTAINS 380 CHARACTERS
+           RECORDING MODE IS F
+           DATA RECORD IS REG-FILE009.
+       01  REG-FILE009.
+           COPY B135F009.
+
+       FD  RELA002
+           RECORD CONTAINS 120 CHARACTERS
+           RECORDING MODE IS F
+           DATA RECORD IS REG-RELA002.
+       01  REG-RELA002 PIC X(120).
+
+
+      *--------------------------------------------------------------*
+       WORKING-STORAGE                     SECTION.
+      *--------------------------------------------------------------*
+      * VARIAVEIS DO LAYOUT DO RELATORIO                             *
+      *--------------------------------------------------------------*
+       01  WS-CABEC1.
+           05 FILLER                       PIC X(04) VALUE SPACES.
+           05 WS-CENTRO                    PIC X(38) VALUE
+                   "CENTRO DE FORMACAO MAINFRAME - TURMA 1".
+           05 FILLER                       PIC X(76)  VALUE SPACES.
+           
+       01  WS-CABEC2.
+           05 FILLER                       PIC X(3)  VALUE SPACES.
+           05 WS-BANCO                     PIC X(35) VALUE
+                   "BANCO FOURBANK (FOLHA DE PAGAMENTO)".
+           05 FILLER                       PIC X(56) VALUE SPACES.
+
+           05 WS-DATA-CABEC1.
+               10 WS-ANO-CABEC             PIC X(04).
+               10 FILLER                   PIC X(01) VALUE "/".
+               
+               10 WS-MES-CABEC             PIC X(02).
+               10 FILLER                   PIC X(01) VALUE "/".
+               
+               10 WS-DIA-CABEC             PIC X(02).
+
+
+           05 FILLER                       PIC X(03)
+                                               VALUE " - ".
+           05 WS-HORA-CABEC1.
+                10 WS-HORA-CABEC           PIC X(02).
+                10 FILLER                  PIC X(01) VALUE ":".
+                
+                10 WS-MINUTO-CABEC         PIC X(02).
+                10 FILLER                  PIC X(01) VALUE ":".
+                
+                10 WS-SEGUNDO-CABEC        PIC X(02).
+           
+           05 FILLER                       PIC X(1)  VALUE SPACES.
+           05 FILLER                       PIC X(1)  VALUE '|'.
+
+
+       01  WS-CABEC3.
+           05 FILLER                       PIC X(1)  VALUE '|'.
+
+           05 FILLER                       PIC X(5)  VALUE SPACES.
+           05 WS-CPF-RLT                   PIC X(03) VALUE "CPF".
+           05 FILLER                       PIC X(6)  VALUE SPACES.
+
+           05 FILLER                       PIC X(1)  VALUE '|'.
+
+           05 FILLER                       PIC X(06) VALUE SPACES.
+           05 WS-NOME-RLT                  PIC X(04) VALUE 'NOME'.
+           05 FILLER                       PIC X(07) VALUE SPACES.
+
+           05 FILLER                       PIC X(1)  VALUE '|'.
+
+           05 FILLER                       PIC X(1)  VALUE SPACES.
+           05 WS-CARGO-RLT                 PIC X(5)  VALUE "CARGO".
+           05 FILLER                       PIC X(2)  VALUE SPACES.
+
+           05 FILLER                       PIC X(1)  VALUE '|'.
+
+           05 FILLER                       PIC X(3)  VALUE SPACES.
+           05 WS-SALARIO-RLT               PIC X(12) VALUE
+                                                         "SALARIO-BASE".
+           05 FILLER                       PIC X(4)  VALUE SPACES.
+
+           05 FILLER                       PIC X(1)  VALUE '|'.
+
+           05 FILLER                       PIC X(2)  VALUE SPACES.
+           05 WS-HORAS-EXTRA-RLT           PIC X(14) VALUE
+                                                       "VALOR-HORA-MES".
+           05 FILLER                       PIC X(3)  VALUE SPACES.
+           
+           05 FILLER                       PIC X(1)  VALUE '|'.
+
+           05 FILLER                       PIC X(7)  VALUE SPACES.
+           05 WS-INSS                      PIC X(4)  VALUE
+                                                       "INSS".
+           05 FILLER                       PIC X(8)  VALUE SPACES.
+
+           05 FILLER                       PIC X(1)  VALUE '|'.
+       
+      *--------------------------------------------------------------*
+      * VARIAVEL  CORTE                                              *
+      *--------------------------------------------------------------*
+       01  WS-CORTE                        PIC X(120) VALUE ALL "-".
+      *--------------------------------------------------------------*
+      * VARIAVEIS DETALHES                                           *
+      *--------------------------------------------------------------*
+       01  WS-LINDET.
+           05 FILLER                       PIC X(03)
+                                                   VALUE SPACES.
+           05 LD-CPF                       PIC X(11).
+           05 FILLER                       PIC X(1)
+                                                   VALUE SPACES.
+
+           05 FILLER                       PIC X(1) VALUE '|'.
+
+           05 FILLER                       PIC X(1)
+                                                   VALUE SPACES.
+           05 LD-NOME                      PIC X(15).
+           05 FILLER                       PIC X(01)
+                                                   VALUE SPACES.
+
+           05 FILLER                       PIC X(1) VALUE '|'.
+
+           05 FILLER                       PIC X(2)
+                                                   VALUE SPACES.
+           05 LD-CARGO                     PIC 9(04).
+           05 FILLER                       PIC X(2)
+                                                   VALUE SPACES.
+
+           05 FILLER                       PIC X(1) VALUE '|'.
+
+           05 FILLER                       PIC X(9) VALUE '   R$    '.
+           05 LD-SALARIO-BASE              PIC Z9.999,99.
+           05 FILLER                       PIC X(1) VALUE SPACES.
+
+           05 FILLER                       PIC X(1) VALUE '|'.
+
+           05 FILLER                       PIC X(9) VALUE '   R$    '.
+           05 LD-VALOR-HORA-EXTRA          PIC ZZ.ZZ9,99.
+           05 FILLER                       PIC X(1) VALUE SPACES.
+
+           05 FILLER                       PIC X(1) VALUE '|'.
+          
+           05 FILLER                       PIC X(9) VALUE '   R$    '.
+           05 LD-INSS                      PIC ZZ.ZZ9,99.
+           05 FILLER                       PIC X(1) VALUE SPACES.
+
+           05 FILLER                       PIC X(1) VALUE '|'.
+
+      *--------------------------------------------------------------*
+      *    RODAPE                                                    *
+      *--------------------------------------------------------------*
+       01  WS-RODAPE1                      PIC X(120)
+                                                   VALUE ALL "-".
+
+       01  WS-RODAPE2.
+           05 FILLER                       PIC X(04) VALUE SPACES.
+           05 WS-CENTRO2                   PIC X(38) VALUE
+                   "CENTRO DE FORMACAO MAINFRAME - TURMA 1".
+           05 FILLER                       PIC X(76)  VALUE SPACES.
+       
+       01  WS-RODAPE3                      PIC X(120)
+                                                   VALUE ALL "-".
+       01  WS-RODAPE4.
+           05 FILLER                       PIC X(1) VALUE '|'.
+           
+           05 FILLER                       PIC X(3)  VALUE SPACES.
+           05 WS-BANCO                     PIC X(35) VALUE
+                   "BANCO FOURBANK (FOLHA DE PAGAMENTO)".
+
+
+           05 FILLER                       PIC X(56) VALUE SPACES.
+
+           05 WS-DATA-RODAPE4.
+               10 WS-ANO-RODAPE            PIC     X(04).
+               10 FILLER                   PIC X(01) VALUE "/".
+
+               10 WS-MES-RODAPE            PIC X(02).
+               10 FILLER                   PIC X(01) VALUE "/".
+               
+               10 WS-DIA-RODAPE            PIC X(02).
+
+
+           05 FILLER                       PIC X(03)
+                                               VALUE " - ".
+           05 WS-HORA-RODAPE4.
+                10 WS-HORA-RODAPE          PIC X(02).
+                10 FILLER                  PIC X(01) VALUE ":".
+                
+                10 WS-MINUTO-RODAPE        PIC X(02).
+                10 FILLER                  PIC X(01) VALUE ":".
+                
+                10 WS-SEGUNDO-RODAPE       PIC X(02).
+
+           05 FILLER                       PIC X(1)  VALUE SPACES.
+           05 FILLER                       PIC X(1)  VALUE '|'.
+
+      *--------------------------------------------------------------*
+      * VARIAVEIS DE FILE STATUS                                     *
+      *--------------------------------------------------------------*
+       01  FS-FILE009                     PIC X(02).
+           88 SUCESSO-F                            VALUE '00'.
+           88 FIM-ARQ-F                            VALUE '10'.
+
+       01  FS-RELA002                      PIC X(02).
+           88 SUCESSO-R                            VALUE '00'.
+           88 FIM-ARQ-R                            VALUE '10'.
+
+      *--------------------------------------------------------------*
+      * VARIAVEIS DE TRABALHO                                        *
+      *--------------------------------------------------------------*
+
+       77  WS-CTLIDO                       PIC 9(04).
+       77  WS-CTINC                        PIC 9(04).
+       77  WS-CTIMP                        PIC 9(04).
+       77  WS-CTEXC                        PIC 9(04).
+       77  WS-CTALT                        PIC 9(04).
+       77  WS-CTMOVINV                     PIC 9(04).
+       77  WS-CTLIN                        PIC 9(04).
+       77  WS-CTPAG                        PIC 9(04).
+       77  WS-PULA                         PIC 9(04).
+
+      *--------------------------------------------------------------*
+       PROCEDURE                           DIVISION.
+      *--------------------------------------------------------------*
+       0000-PROJ8.
+           PERFORM 1000-INICIALIZAR
+           PERFORM 2000-PROCESSAR
+                   UNTIL FIM-ARQ-F
+           PERFORM 3000-TERMINO
+           STOP RUN
+           .
+
+       1000-INICIALIZAR.
+           ACCEPT WS-HORA-CABEC1 FROM TIME 
+           ACCEPT WS-DATA-CABEC1 FROM DATE
+
+           ACCEPT WS-HORA-RODAPE4 FROM TIME
+           ACCEPT WS-DATA-RODAPE4 FROM DATE
+
+           MOVE 0                          TO WS-CTLIDO
+                                              WS-CTINC
+                                              WS-CTEXC
+                                              WS-CTALT
+                                              WS-CTMOVINV
+                                              WS-CTPAG
+           MOVE 99                         TO WS-CTLIN
+
+           OPEN INPUT FILE009
+
+           IF NOT SUCESSO-F
+              DISPLAY 'ERRO ABERTURA FILE008'
+              DISPLAY FS-FILE009
+              GO TO 9000-ERRO
+           END-IF
+
+           OPEN OUTPUT RELA002
+
+           IF NOT SUCESSO-R
+              DISPLAY 'ERRO DE ABERTURA RELOCOR'
+              DISPLAY FS-RELA002
+              GO TO 9000-ERRO
+           END-IF
+
+           PERFORM 1500-LER-FILE009
+           .
+
+       1500-LER-FILE009.
+
+           READ FILE009
+
+           IF SUCESSO-F
+              ADD 1 TO WS-CTLIDO
+           ELSE
+              IF FIM-ARQ-F
+                 DISPLAY 'ARQUIVO LIDO ATE O FINAL'
+              ELSE
+                 DISPLAY 'ERRO DE LEITURA FILE008'
+                 DISPLAY FS-FILE009
+                 GO TO 9000-ERRO
+              END-IF
+           END-IF
+           .
+
+       2000-PROCESSAR.
+           IF WS-CTLIN = 99
+               PERFORM 2500-IMPRIME-CABECALHO
+           END-IF
+
+           IF WS-CTLIN < 18
+               PERFORM 2600-IMPRIME-DETALHE
+           END-IF
+
+           IF WS-CTLIN = 18
+               PERFORM 2700-IMPRIME-RODAPE
+           END-IF
+
+           PERFORM 1500-LER-FILE009
+           .
+
+       2500-IMPRIME-CABECALHO.
+           WRITE REG-RELA002 FROM WS-CABEC1
+           WRITE REG-RELA002 FROM WS-CABEC2
+           WRITE REG-RELA002 FROM WS-CABEC3
+
+           WRITE REG-RELA002 FROM WS-CORTE
+           MOVE 6                          TO WS-CTLIN
+           .
+
+       2600-IMPRIME-DETALHE.
+
+           MOVE B135F009-CPF                   TO LD-CPF
+           MOVE B135F009-NOME                  TO LD-NOME
+           MOVE B135F009-ID-CARGO              TO LD-CARGO
+           MOVE B135F009-SALARIO-BASE          TO LD-SALARIO-BASE
+           MOVE B135F009-VALOR-HORA-EXTRA      TO LD-VALOR-HORA-EXTRA
+           MOVE B135F009-INSS-CALCULADO        TO LD-INSS
+
+           WRITE REG-RELA002 FROM WS-LINDET
+
+           IF SUCESSO-R
+               ADD 1                       TO WS-CTIMP
+               ADD 1                       TO WS-CTLIN
+           ELSE
+               DISPLAY 'ERRO GRAVACAO RELA002'
+               DISPLAY FS-RELA002
+               GO TO 9000-ERRO
+           END-IF
+           .
+
+       2700-IMPRIME-RODAPE.
+           COMPUTE WS-PULA = 99 - WS-CTLIN
+
+           WRITE REG-RELA002 FROM WS-RODAPE1 AFTER WS-PULA LINES
+           IF NOT SUCESSO-R
+               DISPLAY "ERRO IMPRESSAO WS-RODAPE1"
+               DISPLAY FS-RELA002
+           END-IF
+           
+           WRITE REG-RELA002 FROM WS-RODAPE2
+           IF NOT SUCESSO-R
+               DISPLAY "ERRO IMPRESSAO WS-RODAPE2"
+               DISPLAY FS-RELA002
+           END-IF
+          
+           WRITE REG-RELA002 FROM WS-RODAPE3
+           IF NOT SUCESSO-R
+               DISPLAY "ERRO IMPRESSAO WS-RODAPE3"
+               DISPLAY FS-RELA002
+           END-IF
+           
+           WRITE REG-RELA002 FROM WS-RODAPE4
+           IF NOT SUCESSO-R
+               DISPLAY "ERRO IMPRESSAO WS-RODAPE4"
+               DISPLAY FS-RELA002
+           END-IF
+
+           MOVE 99 TO WS-CTLIN
+           .
+
+       2800-IMPRIME-RODAPE-FINAL.
+           WRITE REG-RELA002 FROM WS-RODAPE1 AFTER WS-PULA LINES
+           IF NOT SUCESSO-R
+               DISPLAY "ERRO IMPRESSAO WS-RODAPE1"
+               DISPLAY FS-RELA002
+           END-IF
+           
+           WRITE REG-RELA002 FROM WS-RODAPE2
+           IF NOT SUCESSO-R
+               DISPLAY "ERRO IMPRESSAO WS-RODAPE2"
+               DISPLAY FS-RELA002
+           END-IF
+
+           WRITE REG-RELA002 FROM WS-RODAPE3
+           IF NOT SUCESSO-R
+               DISPLAY "ERRO IMPRESSAO WS-RODAPE3"
+               DISPLAY FS-RELA002
+           END-IF
+           
+           WRITE REG-RELA002 FROM WS-RODAPE4
+           IF NOT SUCESSO-R
+               DISPLAY "ERRO IMPRESSAO WS-RODAPE4"
+               DISPLAY FS-RELA002
+           END-IF
+
+           MOVE 99 TO WS-CTLIN
+           .
+
+       3000-TERMINO.
+           IF FIM-ARQ-F 
+               PERFORM 2800-IMPRIME-RODAPE-FINAL
+
+           CLOSE FILE009
+
+           IF NOT SUCESSO-F
+              DISPLAY 'ERRO DE FECHAMENTO FILE009'
+              DISPLAY FS-FILE009
+              GO TO 9000-ERRO
+           END-IF
+
+           CLOSE RELA002
+
+           IF NOT SUCESSO-R
+              DISPLAY 'ERRO DE FECHAMENTO RELA002'
+              DISPLAY FS-RELA002
+              GO TO 9000-ERRO
+           END-IF
+
+           DISPLAY '=================================================='
+           DISPLAY 'TOTAL DE MOVIMENTOS LIDOS....:' WS-CTLIDO
+           DISPLAY 'TOTAL DE PRODUTOS INCLUIDOS..:' WS-CTINC
+           DISPLAY 'TOTAL DE PRODUTOS EXCLUIDOS..:' WS-CTEXC
+           DISPLAY 'TOTAL DE PRODUTOS ALTERADOS..:' WS-CTALT
+           DISPLAY 'TOTAL DE MOVIMENTOS INVALIDOS:' WS-CTMOVINV
+           DISPLAY 'TOTAL DE LINHAS DE DET IMPRES:' WS-CTLIN
+           DISPLAY 'TOTAL DE PAGINAS.............:' WS-CTPAG
+           DISPLAY '=================================================='
+           DISPLAY '=================================================='
+           DISPLAY '             TERMINO NORMAL RELA002               '
+           DISPLAY '=================================================='
+           .
+
+       9000-ERRO.
+           DISPLAY '=================================================='
+           DISPLAY '==          TERMINO ANORMAL DO RELA002          =='
+           DISPLAY '=================================================='
+           STOP RUN
+           .
