@@ -1,0 +1,278 @@
+      *----------------------------------------------------------------*
+       IDENTIFICATION                      DIVISION.
+      *----------------------------------------------------------------*
+       PROGRAM-ID.                         FT3PLOG.
+       AUTHOR.                             FELIPE.
+
+      *----------------------------------------------------------------*
+       ENVIRONMENT                         DIVISION.
+      *----------------------------------------------------------------*
+       CONFIGURATION                       SECTION.
+       SPECIAL-NAMES.
+           DECIMAL-POINT IS COMMA.
+
+      *----------------------------------------------------------------*
+       DATA                                DIVISION.
+      *----------------------------------------------------------------*
+       WORKING-STORAGE                     SECTION.
+      *----------------------------------------------------------------*
+       77  WS-MSG-ERRO                     PIC X(80).
+       77  WS-LENGTH                       PIC S9(04) COMP.
+
+      * 01  WS-VAR-TEMPO.
+      *     05 WS-DATA                      PIC X(10).
+      *     05 WS-HORARIO                   PIC X(08).
+
+       01  WS-DATA.
+           05 WS-ANO                       PIC X(02).
+           05 WS-MES                       PIC X(02).
+           05 WS-DIA                       PIC X(02).
+
+       01  WS-HORARIO.
+           05 WS-HORA                      PIC X(02).
+           05 WS-MIN                       PIC X(02).
+           05 WS-SEG                       PIC X(02).
+
+       01  WS-DATA-F.
+           05 WS-ANO-F                     PIC X(02).
+           05 FILLER                       PIC X(01) VALUE '/'.
+           05 WS-MES-F                     PIC X(02).
+           05 FILLER                       PIC X(01) VALUE '/'.
+           05 WS-DIA-F                     PIC X(02).
+
+       01  WS-HORARIO-F.
+           05 WS-HORA-F                    PIC X(02).
+           05 FILLER                       PIC X(01) VALUE ':'.
+           05 WS-MIN-F                     PIC X(02).
+           05 FILLER                       PIC X(01) VALUE ':'.
+           05 WS-SEG-F                     PIC X(02).
+
+       01  WS-DFHCOMMAREA.
+           05 WS-FASE                      PIC X(01).
+           05 WS-PAGA                      PIC 9(02).
+           05 WS-PAGT                      PIC 9(02).
+           05 WS-ID-COMMAREA               PIC X(05).
+           05 WS-CPF-COMMAREA              PIC X(11).
+
+           COPY FT3LOG.
+
+           COPY DFHAID.
+           COPY DFHBMSCA.
+
+           EXEC SQL
+              INCLUDE TCDCLCLI
+           END-EXEC.
+
+           EXEC SQL
+              INCLUDE SQLCA
+           END-EXEC.
+
+      *----------------------------------------------------------------*
+       LINKAGE                             SECTION.
+      *----------------------------------------------------------------*
+       01  DFHCOMMAREA.
+           05 OCCURS 0 TO 24576 TIMES DEPENDING ON EIBCALEN
+                                           PIC X(01).
+      *----------------------------------------------------------------*
+       PROCEDURE                           DIVISION.
+      *----------------------------------------------------------------*
+           EXEC CICS HANDLE CONDITION
+              MAPFAIL (999-MAPFAIL)
+              ERROR   (999-ERROR  )
+           END-EXEC
+
+      * SELETOR DE FASE - A CONSULTA POSSUI 4 FASES
+      *    FASE 1 - ENVIA O MAPA PARA O TERMINAL
+      *    FASE 2 - TRATA O CAMPO T2COD (CHAVE)
+      *    FASE 3 - TRATA OS CAMPOS DE DADOS (NAO CHAVE)
+      *
+           MOVE DFHCOMMAREA                TO WS-DFHCOMMAREA
+
+           IF EIBCALEN = 0
+              MOVE '1'                     TO WS-FASE
+           END-IF
+           .
+
+           EVALUATE WS-FASE
+              WHEN '1' PERFORM 100-FASE1
+              WHEN '2' PERFORM 200-FASE2
+              WHEN OTHER
+                 MOVE +80                  TO WS-LENGTH
+                 MOVE 'ERRO NO NUMERO DA FASE'
+                                           TO WS-MSG-ERRO
+                 PERFORM 999-ENCERRA-TRANSACAO
+           END-EVALUATE
+           .
+
+       100-FASE1.
+           MOVE LOW-VALUES                 TO MAPALOGO
+           MOVE -1                         TO USERL
+           MOVE 'DIGITE O SEU LOGIN'       TO MSGO
+
+           PERFORM 999-MANDA-TELA
+           PERFORM 999-CHAMA-FASE2
+           .
+
+       200-FASE2.
+           EXEC CICS HANDLE AID
+              ENTER   (200-ENTER)
+              PF2     (210-PF2)
+              PF3     (220-PF3)
+              ANYKEY  (240-ANYKEY)
+           END-EXEC
+
+           EXEC CICS RECEIVE
+              MAP   ('MAPALOG')
+              MAPSET('FT3LOG')
+              INTO  (MAPALOGI)
+           END-EXEC
+           .
+
+       200-ENTER.
+           IF USERL     = 0 OR USERI     EQUAL SPACES OR
+              PASSWORDL = 0 OR PASSWORDI EQUAL SPACES
+
+               MOVE 'FAVOR PREENCHER TODOS OS CAMPOS'
+                                           TO MSGO
+           PERFORM 999-TRATA-FASE2
+           END-IF
+
+           IF USERL     NOT EQUAL 0 AND USERI     NOT EQUAL SPACES AND
+              PASSWORDL NOT EQUAL 0 AND PASSWORDI NOT EQUAL SPACES
+
+              MOVE USERI                    TO DCLCLI-NOME-USUARIO
+              MOVE PASSWORDI                TO DCLCLI-SENHA
+
+           EXEC SQL
+               SELECT NOME_USUARIO, SENHA
+               INTO   :DCLCLI-NOME-USUARIO, :DCLCLI-SENHA
+               FROM CLIENTES
+               WHERE NOME_USUARIO = :DCLCLI-NOME-USUARIO
+               AND SENHA = :DCLCLI-SENHA
+           END-EXEC
+
+           IF SQLCODE NOT EQUAL 0
+               MOVE 'USUARIO OU SENHA INVALIDOS!'
+                                             TO MSGO
+               PERFORM 999-TRATA-FASE2
+           ELSE
+               MOVE '1'                      TO WS-FASE
+               MOVE DCLCLI-NOME-USUARIO      TO WS-CPF-COMMAREA
+
+               EXEC CICS XCTL
+               PROGRAM('FT3PPRD')
+               COMMAREA(WS-DFHCOMMAREA)
+               LENGTH(LENGTH OF WS-DFHCOMMAREA)
+               END-EXEC
+           END-IF
+           .
+
+       210-PF2.
+           MOVE '1'                          TO WS-FASE
+
+           EXEC CICS XCTL
+               PROGRAM('FT3PCAD')
+               COMMAREA(WS-DFHCOMMAREA)
+               LENGTH(LENGTH OF WS-DFHCOMMAREA)
+           END-EXEC.
+
+       220-PF3.
+           PERFORM 999-ENCERRA-TRANSACAO
+           .
+
+       240-ANYKEY.
+           MOVE 'TECLA PRESSIONADA INVALIDA!'
+                                           TO MSGO
+           PERFORM 999-TRATA-FASE2
+           .
+
+       999-PROTECAO-FASE2.
+      * limpar campos
+           MOVE SPACES                     TO USERO
+           MOVE SPACES                     TO PASSWORDO
+           .
+
+
+       999-MANDA-TELA.
+           MOVE EIBTRMID                  TO TERMO
+           MOVE EIBTRNID                  TO TRANSO
+           MOVE EIBTASKN                  TO TASKO
+           MOVE WS-FASE                   TO FASEO
+
+           ACCEPT WS-DATA    FROM DATE
+           ACCEPT WS-HORARIO FROM TIME
+
+           MOVE WS-DIA     TO WS-DIA-F
+           MOVE WS-MES     TO WS-MES-F
+           MOVE WS-ANO     TO WS-ANO-F
+
+           MOVE WS-HORA    TO WS-HORA-F
+           MOVE WS-MIN     TO WS-MIN-F
+           MOVE WS-SEG     TO WS-SEG-F
+
+           MOVE WS-DATA-F                 TO DATAO
+           MOVE WS-HORARIO-F              TO HORAO
+
+           EXEC CICS SEND
+               MAP ('MAPALOG')
+               MAPSET('FT3LOG')
+               FROM(MAPALOGO)
+               ERASE FREEKB ALARM CURSOR
+           END-EXEC
+           .
+
+       999-CHAMA-FASE1.
+           MOVE '1'                        TO WS-FASE
+
+           EXEC CICS XCTL
+               PROGRAM('FT3PLOG')
+               COMMAREA(WS-DFHCOMMAREA)
+               LENGTH(LENGTH OF WS-DFHCOMMAREA)
+           END-EXEC
+           .
+
+       999-CHAMA-FASE2.
+           MOVE '2'                        TO WS-FASE
+
+           EXEC CICS RETURN
+               TRANSID('FT3A')
+               COMMAREA(WS-DFHCOMMAREA)
+               LENGTH(LENGTH OF WS-DFHCOMMAREA)
+           END-EXEC
+           .
+
+       999-TRATA-FASE2.
+           MOVE -1                         TO USERL
+
+           PERFORM 999-MANDA-TELA
+           PERFORM 999-PROTECAO-FASE2
+           PERFORM 999-CHAMA-FASE2
+           .
+
+       999-ENCERRA-TRANSACAO.
+           MOVE +80                        TO WS-LENGTH
+           MOVE 'FIM DO PROGRAMA'          TO WS-MSG-ERRO
+
+           EXEC CICS SEND TEXT
+               FROM (WS-MSG-ERRO)
+               LENGTH(WS-LENGTH)
+               ERASE FREEKB ALARM
+           END-EXEC
+
+           EXEC CICS RETURN
+           END-EXEC
+           .
+
+       999-MAPFAIL.
+           MOVE +80                        TO WS-LENGTH
+           MOVE 'ERRO MAPA fs03SML'        TO WS-MSG-ERRO
+           PERFORM 999-ENCERRA-TRANSACAO
+           .
+
+       999-ERROR.
+           MOVE +80                        TO WS-LENGTH
+           MOVE 'ERRO GENERICO fs03SIEM'   TO WS-MSG-ERRO
+           PERFORM 999-ENCERRA-TRANSACAO
+           .
+
+

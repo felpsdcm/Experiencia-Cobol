@@ -1,0 +1,403 @@
+      *----------------------------------------------------------------*
+       IDENTIFICATION                      DIVISION.
+      *----------------------------------------------------------------*
+       PROGRAM-ID.                         FT3PCAD.
+       AUTHOR.                             FELIPE.
+
+      *----------------------------------------------------------------*
+       ENVIRONMENT                         DIVISION.
+      *----------------------------------------------------------------*
+       CONFIGURATION                       SECTION.
+       SPECIAL-NAMES.
+           DECIMAL-POINT IS COMMA.
+
+      *----------------------------------------------------------------*
+       DATA                                DIVISION.
+      *----------------------------------------------------------------*
+       WORKING-STORAGE                     SECTION.
+      *----------------------------------------------------------------*
+       77  WS-MSG-ERRO                     PIC X(80).
+       77  WS-LENGTH                       PIC S9(04) COMP.
+
+       01  WS-DATA.
+           05 WS-ANO                       PIC X(02).
+           05 WS-MES                       PIC X(02).
+           05 WS-DIA                       PIC X(02).
+
+       01  WS-HORARIO.
+           05 WS-HORA                      PIC X(02).
+           05 WS-MIN                       PIC X(02).
+           05 WS-SEG                       PIC X(02).
+
+       01  WS-DATA-F.
+           05 WS-ANO-F                     PIC X(02).
+           05 FILLER                       PIC X(01) VALUE '/'.
+           05 WS-MES-F                     PIC X(02).
+           05 FILLER                       PIC X(01) VALUE '/'.
+           05 WS-DIA-F                     PIC X(02).
+
+       01  WS-HORARIO-F.
+           05 WS-HORA-F                    PIC X(02).
+           05 FILLER                       PIC X(01) VALUE ':'.
+           05 WS-MIN-F                     PIC X(02).
+           05 FILLER                       PIC X(01) VALUE ':'.
+           05 WS-SEG-F                     PIC X(02).
+
+       01  WS-DATA-NASC.
+           05 WS-DIA-NASC                  PIC X(02).
+           05 FILLER                       PIC X(01) VALUE '.'.
+           05 WS-MES-NASC                  PIC X(02).
+           05 FILLER                       PIC X(01) VALUE '.'.
+           05 WS-ANO-NASC                  PIC X(04).
+
+       01  WS-DFHCOMMAREA.
+           05 WS-FASE                      PIC X(01).
+           05 WS-PAGA                      PIC 9(02).
+           05 WS-PAGT                      PIC 9(02).
+           05 WS-ID-COMMAREA               PIC X(05).
+           05 WS-CPF-COMMAREA              PIC X(11).
+
+           COPY FT3CAD.
+
+           COPY DFHAID.
+           COPY DFHBMSCA.
+
+           EXEC SQL
+              INCLUDE TCDCLCLI
+           END-EXEC.
+
+           EXEC SQL
+              INCLUDE SQLCA
+           END-EXEC.
+
+      *----------------------------------------------------------------*
+       LINKAGE                             SECTION.
+      *----------------------------------------------------------------*
+       01  DFHCOMMAREA.
+           05 OCCURS 0 TO 24576 TIMES DEPENDING ON EIBCALEN
+                                           PIC X(01).
+      *----------------------------------------------------------------*
+       PROCEDURE                           DIVISION.
+      *----------------------------------------------------------------*
+           EXEC CICS HANDLE CONDITION
+              MAPFAIL (999-MAPFAIL)
+              ERROR   (999-ERROR  )
+           END-EXEC
+
+      * SELETOR DE FASE - A CONSULTA POSSUI 4 FASES
+      *    FASE 1 - ENVIA O MAPA PARA O TERMINAL
+      *    FASE 2 - TRATA O CAMPO T2COD (CHAVE)
+      *    FASE 3 - TRATA OS CAMPOS DE DADOS (NAO CHAVE)
+      *
+           MOVE DFHCOMMAREA                TO WS-DFHCOMMAREA
+
+           IF EIBCALEN = 0
+              MOVE '1'                     TO WS-FASE
+           END-IF
+           .
+
+           EVALUATE WS-FASE
+              WHEN '1' PERFORM 100-FASE1
+              WHEN '2' PERFORM 200-FASE2
+              WHEN OTHER
+                 MOVE +80                  TO WS-LENGTH
+                 MOVE 'ERRO NO NUMERO DA FASE'
+                                           TO WS-MSG-ERRO
+                 PERFORM 999-ENCERRA-TRANSACAO
+           END-EVALUATE
+           .
+
+       100-FASE1.
+           MOVE LOW-VALUES                 TO MAPACADO
+           MOVE -1                         TO NAMEL
+           MOVE 'INSIRA SEUS DADOS'        TO MSGO
+
+           PERFORM 999-MANDA-TELA
+           PERFORM 999-CHAMA-FASE2
+           .
+
+       200-FASE2.
+           EXEC CICS HANDLE AID
+              ENTER   (200-ENTER)
+              PF2     (210-PF2)
+              PF3     (220-PF3)
+              PF5     (230-PF5)
+              ANYKEY  (240-ANYKEY)
+           END-EXEC
+
+           EXEC CICS RECEIVE
+              MAP   ('MAPACAD')
+              MAPSET('FT3CAD')
+              INTO  (MAPACADI)
+           END-EXEC
+           .
+
+       200-ENTER.
+           IF NAMEL     = 0 OR NAMEI     EQUAL SPACES
+               MOVE 'PREENCHA O CAMPO NOME' TO MSGO
+               MOVE -1                      TO NAMEL
+
+               PERFORM 999-TRATA-FASE2
+           END-IF
+
+           IF CPFL      = 0 OR CPFI      EQUAL SPACES
+               MOVE 'PREENCHA O CAMPO SENHA' TO MSGO
+               MOVE -1                      TO CPFL
+
+               PERFORM 999-TRATA-FASE2
+           END-IF
+
+           IF EMAILL = 0 OR EMAILI EQUAL SPACES
+               MOVE 'PREENCHA O CAMPO EMAIL' TO MSGO
+               MOVE -1                      TO EMAILL
+
+               PERFORM 999-TRATA-FASE2
+           END-IF
+
+           IF DIAL = 0 OR DIAI EQUAL SPACES
+               MOVE 'PREENCHA O CAMPO DIA' TO MSGO
+               MOVE -1                     TO DIAL
+
+               PERFORM 999-TRATA-FASE2
+      *    ELSE
+      *        IF DIAI < 1 OR DIAI > 31
+      *            MOVE 'DIA INVALIDO' TO MSGO
+      *            MOVE -1                      TO DIAL
+      *            PERFORM 999-TRATA-FASE2
+      *        END-IF
+           END-IF
+
+           IF MESL = 0 OR MESI EQUAL SPACES
+               MOVE 'PREENCHA O CAMPO MES' TO MSGO
+               MOVE -1                      TO MESL
+
+               PERFORM 999-TRATA-FASE2
+      *    ELSE
+      *        IF MESI < 1 OR MESI > 12
+      *            MOVE 'MES INVALIDO' TO MSGO
+      *            MOVE -1                      TO MESL
+      *
+      *            PERFORM 999-TRATA-FASE2
+      *        END-IF
+           END-IF
+
+           IF ANOL = 0 OR ANOI EQUAL SPACES
+               MOVE 'PREENCHA O CAMPO ANO' TO MSGO
+               MOVE -1                      TO ANOL
+
+               PERFORM 999-TRATA-FASE2
+      *    ELSE
+      *         IF ANOI < 1900 OR ANOI > 2100
+      *              MOVE 'ANO INVALIDO' TO MSGO
+      *              MOVE -1                      TO DIAL
+      *
+      *              PERFORM 999-TRATA-FASE2
+      *         END-IF
+           END-IF
+
+           IF USERL = 0 OR USERI EQUAL SPACES
+               MOVE 'PREENCHA O CAMPO USUARIO' TO MSGO
+               MOVE -1                      TO USERL
+               PERFORM 999-TRATA-FASE2
+           END-IF
+
+           IF PASSWORDL = 0 OR PASSWORDI EQUAL SPACES
+               MOVE 'PREENCHA O CAMPO SENHA' TO MSGO
+               MOVE -1                      TO PASSWORDL
+               PERFORM 999-TRATA-FASE2
+           END-IF
+
+           EVALUATE TRUE
+           WHEN DIAI < '01' OR DIAI > '31' OR
+                MESI < '01' OR MESI > '12' OR
+                ANOI < '1900' OR ANOI > '2015'
+
+                MOVE 'DATA DE NASCIMENTO INVALIDA' TO MSGO
+                PERFORM 999-TRATA-FASE2
+                PERFORM 230-PF5
+           WHEN OTHER CONTINUE
+           END-EVALUATE
+
+           IF NAMEL     NOT EQUAL 0 AND NAMEI     NOT EQUAL SPACES AND
+              CPFL      NOT EQUAL 0 AND CPFI      NOT EQUAL SPACES AND
+              EMAILL    NOT EQUAL 0 AND EMAILI    NOT EQUAL SPACES AND
+              DIAL      NOT EQUAL 0 AND DIAI      NOT EQUAL SPACES AND
+              MESL      NOT EQUAL 0 AND MESI      NOT EQUAL SPACES AND
+              ANOL      NOT EQUAL 0 AND ANOI      NOT EQUAL SPACES AND
+              USERL     NOT EQUAL 0 AND USERI     NOT EQUAL SPACES AND
+              PASSWORDL NOT EQUAL 0 AND PASSWORDI NOT EQUAL SPACES
+
+              MOVE NAMEI                    TO DCLCLI-NOME
+              MOVE CPFI                     TO DCLCLI-CPF
+              MOVE EMAILI                   TO DCLCLI-EMAIL
+
+              MOVE DIAI                     TO WS-DIA-NASC
+              MOVE MESI                     TO WS-MES-NASC
+              MOVE ANOI                     TO WS-ANO-NASC
+              MOVE WS-DATA-NASC             TO DCLCLI-DATA-NASCIMENTO
+              MOVE USERI                    TO DCLCLI-NOME-USUARIO
+              MOVE PASSWORDI                TO DCLCLI-SENHA
+
+              MOVE CPFI                     TO WS-CPF-COMMAREA
+
+              ACCEPT DCLCLI-DATA-CADASTRO FROM DATE
+
+           EXEC SQL
+               INSERT INTO CLIENTES
+                 (
+                  CPF,
+                  NOME,
+                  EMAIL,
+                  DATA_NASCIMENTO,
+                  DATA_CADASTRO,
+                  NOME_USUARIO,
+                  SENHA
+                 )
+               VALUES
+                 (
+                 :DCLCLI-CPF,
+                 :DCLCLI-NOME,
+                 :DCLCLI-EMAIL,
+                 :DCLCLI-DATA-NASCIMENTO,
+                 CURRENT DATE,
+                 :DCLCLI-NOME-USUARIO,
+                 :DCLCLI-SENHA
+                 )
+           END-EXEC
+
+           IF SQLCODE NOT EQUAL 0
+               MOVE 'USUARIO NAO CADASTRADO, TENTE NOVAMENTE' TO MSGO
+               PERFORM 999-TRATA-FASE2
+           ELSE
+               IF SQLCODE EQUAL 0
+
+               PERFORM 210-PF2
+               END-IF
+           END-IF
+           .
+
+       210-PF2.
+           MOVE '1'                        TO WS-FASE
+
+           EXEC CICS XCTL
+               PROGRAM('FT3PLOG')
+               COMMAREA(WS-DFHCOMMAREA)
+               LENGTH(LENGTH OF WS-DFHCOMMAREA)
+           END-EXEC.
+
+       220-PF3.
+           PERFORM 999-ENCERRA-TRANSACAO
+           .
+
+       230-PF5.
+           MOVE '1'                        TO WS-FASE
+
+           MOVE 'LIMPEZA DE TELA EXECUTADA' TO MSGO
+           MOVE -1                         TO NAMEL
+           EXEC CICS XCTL
+               PROGRAM('FT3PCAD')
+               COMMAREA(WS-DFHCOMMAREA)
+               LENGTH(LENGTH OF WS-DFHCOMMAREA)
+           END-EXEC.
+
+       240-ANYKEY.
+           MOVE 'TECLA PRESSIONADA INVALIDA!'
+                                           TO MSGO
+           PERFORM 999-TRATA-FASE2
+           .
+
+       999-PROTECAO-FASE2.
+      * limpar campos
+           MOVE SPACES                     TO NAMEO
+           MOVE SPACES                     TO CPFO
+           MOVE SPACES                     TO EMAILO
+           MOVE SPACES                     TO DIAO
+           MOVE SPACES                     TO MESO
+           MOVE SPACES                     TO ANOO
+           MOVE SPACES                     TO USERO
+           MOVE SPACES                     TO PASSWORDO
+           .
+
+       999-MANDA-TELA.
+           MOVE EIBTRMID                  TO TERMO
+           MOVE EIBTRNID                  TO TRANSO
+           MOVE EIBTASKN                  TO TASKO
+           MOVE WS-FASE                   TO FASEO
+
+           ACCEPT WS-DATA    FROM DATE
+           ACCEPT WS-HORARIO FROM TIME
+
+           MOVE WS-DIA     TO WS-DIA-F
+           MOVE WS-MES     TO WS-MES-F
+           MOVE WS-ANO     TO WS-ANO-F
+
+           MOVE WS-HORA    TO WS-HORA-F
+           MOVE WS-MIN     TO WS-MIN-F
+           MOVE WS-SEG     TO WS-SEG-F
+
+           MOVE WS-DATA-F                 TO DATAO
+           MOVE WS-HORARIO-F              TO HORAO
+
+           EXEC CICS SEND
+               MAP ('MAPACAD')
+               MAPSET('FT3CAD')
+               FROM(MAPACADO)
+               ERASE FREEKB ALARM CURSOR
+           END-EXEC
+           .
+
+       999-CHAMA-FASE1.
+           MOVE '1'                        TO WS-FASE
+
+           EXEC CICS XCTL
+               PROGRAM('FT3PCAD')
+               COMMAREA(WS-DFHCOMMAREA)
+               LENGTH(LENGTH OF WS-DFHCOMMAREA)
+           END-EXEC
+           .
+
+       999-CHAMA-FASE2.
+           MOVE '2'                        TO WS-FASE
+
+           EXEC CICS RETURN
+               TRANSID('FT3B')
+               COMMAREA(WS-DFHCOMMAREA)
+               LENGTH(LENGTH OF WS-DFHCOMMAREA)
+           END-EXEC
+           .
+
+       999-TRATA-FASE2.
+           MOVE -1                         TO CPFL
+
+           PERFORM 999-MANDA-TELA
+           PERFORM 999-PROTECAO-FASE2
+           PERFORM 999-CHAMA-FASE2
+           .
+
+       999-ENCERRA-TRANSACAO.
+           MOVE +80                        TO WS-LENGTH
+           MOVE 'FIM DO PROGRAMA'          TO WS-MSG-ERRO
+
+           EXEC CICS SEND TEXT
+               FROM (WS-MSG-ERRO)
+               LENGTH(WS-LENGTH)
+               ERASE FREEKB ALARM
+           END-EXEC
+
+           EXEC CICS RETURN
+           END-EXEC
+           .
+
+       999-MAPFAIL.
+           MOVE +80                        TO WS-LENGTH
+           MOVE 'ERRO MAPA fs03SML'        TO WS-MSG-ERRO
+           PERFORM 999-ENCERRA-TRANSACAO
+           .
+
+       999-ERROR.
+           MOVE +80                        TO WS-LENGTH
+           MOVE 'ERRO GENERICO fs03SIEM'   TO WS-MSG-ERRO
+           PERFORM 999-ENCERRA-TRANSACAO
+           .
+
+
